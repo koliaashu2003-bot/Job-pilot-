@@ -94,6 +94,8 @@ export interface JobSearchParams {
   datePosted?: "today" | "3days" | "week" | "month" | "all";
   employmentType?: string;
   page?: number;
+  skills?: string[];
+  sources?: JobSource[];
 }
 
 export const emptyProfile = (overrides: Partial<UserProfile> = {}): UserProfile => ({
