@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only read/write their own document.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      match /tokens/{provider} {
+        // OAuth tokens are managed server-side (Admin SDK bypasses rules).
+        allow read, write: if false;
+      }
+    }
+
+    // Applications: user-scoped.
+    match /applications/{uid}/items/{appId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Jobs cache: readable by any authenticated user; server-only writes.
+    match /jobs/{jobId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // SeenJobs: user-scoped reads; server-only writes.
+    match /seenJobs/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Link codes: server-managed only.
+    match /linkCodes/{code} {
+      allow read, write: if false;
+    }
+  }
+}
