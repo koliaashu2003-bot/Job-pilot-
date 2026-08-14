@@ -23,6 +23,8 @@ const bodySchema = z.object({
   toEmail: z.string().email(),
   // Optional pre-edited body; if absent we generate one.
   emailBody: z.string().optional(),
+  // Preview-only: generate the email body without creating a Gmail draft.
+  preview: z.boolean().optional(),
 });
 
 /** Fetch the user's CV from Storage as base64 for attaching to the draft. */
@@ -73,6 +75,11 @@ export async function POST(req: Request) {
   }
 
   const subject = `Application: ${body.job.title} — ${user.profile.fullName || user.displayName}`;
+
+  // Preview-only: return the generated email without creating a draft.
+  if (body.preview) {
+    return NextResponse.json({ ok: true, preview: true, emailBody, subject });
+  }
 
   // 2. Create the Gmail draft (with CV attachment when available).
   let draftId = "";
