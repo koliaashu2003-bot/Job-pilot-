@@ -72,9 +72,15 @@ function normalize(j: JSearchJob): Job {
   };
 }
 
-/** Search JSearch. Returns [] when unconfigured or on error (never throws). */
-export async function searchJSearch(params: JobSearchParams): Promise<Job[]> {
-  const apiKey = process.env.JSEARCH_API_KEY;
+/**
+ * Search JSearch. Uses the given key, else the shared env key.
+ * Returns [] when unconfigured or on error (never throws).
+ */
+export async function searchJSearch(
+  params: JobSearchParams,
+  apiKeyOverride?: string
+): Promise<Job[]> {
+  const apiKey = apiKeyOverride || process.env.JSEARCH_API_KEY;
   if (!apiKey) return [];
 
   const query = [params.query, params.location].filter(Boolean).join(" in ") || "software";

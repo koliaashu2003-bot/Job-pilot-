@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TelegramLink } from "@/components/telegram-link";
+import { SourceManager } from "@/components/source-manager";
 import type { NotificationPrefs } from "@/lib/types";
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -146,6 +147,20 @@ function SettingsInner() {
               Edit profile
             </Button>
           </Link>
+        </CardContent>
+      </Card>
+
+      {/* Job sources */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Job sources</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            JobPilot searches across job platforms for you. Free sources are always on; connect
+            your own API keys to unlock more. Keys are encrypted and never leave the server.
+          </p>
+          <SourceManager />
         </CardContent>
       </Card>
 

@@ -1,14 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Plug, Search, SlidersHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useJobs } from "@/hooks/useJobs";
+import { useSources, type ProviderMeta } from "@/hooks/useSources";
 import { JobList } from "@/components/job-list";
 import { ApplyModal } from "@/components/apply-modal";
+import { SourceConnectDialog } from "@/components/source-connect-dialog";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import type { Job, JobSearchParams } from "@/lib/types";
 
 type SortKey = "relevance" | "date" | "salary";
@@ -23,18 +26,27 @@ function salaryValue(s?: string): number {
 export default function JobsPage() {
   const { user } = useAuth();
   const profile = user?.profile;
-  const { jobs, loading, error, search } = useJobs(profile);
+  const { jobs, loading, error, needsAccess, hasSearched, search } = useJobs(profile);
+  const { providers, connected, connect } = useSources();
 
   const [query, setQuery] = React.useState("");
   const [location, setLocation] = React.useState("");
   const [remoteOnly, setRemoteOnly] = React.useState(false);
   const [datePosted, setDatePosted] = React.useState<JobSearchParams["datePosted"]>("week");
   const [employmentType, setEmploymentType] = React.useState("");
-  const [sources, setSources] = React.useState({ jsearch: true, remoteok: true });
+  const [selectedSources, setSelectedSources] = React.useState<Set<string>>(new Set());
   const [sort, setSort] = React.useState<SortKey>("relevance");
 
   const [activeJob, setActiveJob] = React.useState<Job | null>(null);
+  const [connectProvider, setConnectProvider] = React.useState<ProviderMeta | null>(null);
   const [skipped, setSkipped] = React.useState<Set<string>>(new Set());
+
+  // Select all providers by default once metadata loads.
+  React.useEffect(() => {
+    if (providers.length && selectedSources.size === 0) {
+      setSelectedSources(new Set(providers.map((p) => p.id)));
+    }
+  }, [providers, selectedSources.size]);
 
   // Pre-fill from profile once loaded.
   React.useEffect(() => {
@@ -45,9 +57,6 @@ export default function JobsPage() {
   }, [profile]);
 
   function runSearch() {
-    const chosen = Object.entries(sources)
-      .filter(([, v]) => v)
-      .map(([k]) => k as "jsearch" | "remoteok");
     search({
       query,
       location,
@@ -55,7 +64,15 @@ export default function JobsPage() {
       datePosted,
       employmentType: employmentType || undefined,
       skills: profile?.skills,
-      sources: chosen.length ? chosen : undefined,
+      sources: Array.from(selectedSources),
+    });
+  }
+
+  function toggleSource(id: string) {
+    setSelectedSources((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
   }
 
@@ -79,7 +96,7 @@ export default function JobsPage() {
         <div>
           <h1 className="text-2xl font-bold">Find jobs</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live roles from Google Jobs and RemoteOK, ranked by fit.
+            Searches every platform you&apos;ve connected, ranked by fit.
           </p>
         </div>
       </header>
@@ -108,7 +125,7 @@ export default function JobsPage() {
         </Button>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[240px_1fr]">
         {/* Filters */}
         <aside className="space-y-5">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -150,26 +167,34 @@ export default function JobsPage() {
             Remote only
           </label>
 
+          {/* Dynamic provider list */}
           <div className="space-y-2">
-            <Label>Sources</Label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sources.jsearch}
-                onChange={(e) => setSources((s) => ({ ...s, jsearch: e.target.checked }))}
-                className="h-4 w-4 accent-emerald-500"
-              />
-              Google Jobs (JSearch)
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={sources.remoteok}
-                onChange={(e) => setSources((s) => ({ ...s, remoteok: e.target.checked }))}
-                className="h-4 w-4 accent-emerald-500"
-              />
-              RemoteOK
-            </label>
+            <Label>Platforms</Label>
+            {providers.map((p) => {
+              const isConnected = p.keyless || connected.includes(p.id);
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedSources.has(p.id)}
+                      onChange={() => toggleSource(p.id)}
+                      className="h-4 w-4 accent-emerald-500"
+                    />
+                    {p.name}
+                  </label>
+                  {!isConnected && (
+                    <button
+                      type="button"
+                      onClick={() => setConnectProvider(p)}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="space-y-1.5">
@@ -194,6 +219,40 @@ export default function JobsPage() {
               Complete your profile to get personalized match scores.
             </div>
           )}
+
+          {/* Blocked platforms → prompt to connect */}
+          {needsAccess.length > 0 && (
+            <div className="mb-4 rounded-md border border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Plug className="h-4 w-4 text-primary" /> Unlock more jobs
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                These platforms need your own access to search. Connect them to widen your results.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {needsAccess.map((na) => {
+                  const meta = providers.find((p) => p.id === na.id) || null;
+                  return (
+                    <Button
+                      key={na.id}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => meta && setConnectProvider(meta)}
+                    >
+                      <Plug className="h-3.5 w-3.5" /> Connect {na.name}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {hasSearched && !loading && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="outline">{visible.length} results</Badge>
+            </div>
+          )}
+
           <JobList
             jobs={visible}
             loading={loading}
@@ -208,6 +267,13 @@ export default function JobsPage() {
         open={!!activeJob}
         onClose={() => setActiveJob(null)}
         onDrafted={() => setActiveJob(null)}
+      />
+
+      <SourceConnectDialog
+        provider={connectProvider}
+        open={!!connectProvider}
+        onClose={() => setConnectProvider(null)}
+        onConnect={connect}
       />
     </div>
   );

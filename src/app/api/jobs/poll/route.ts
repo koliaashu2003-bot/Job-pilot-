@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { searchJSearch } from "@/lib/jsearch";
-import { searchRemoteOk } from "@/lib/remoteok";
+import { PROVIDERS, getProvider, hasAllCredentials } from "@/lib/providers";
+import { loadCredentials } from "@/lib/sources";
 import { calculateMatchScore, matchedSkills } from "@/lib/match";
 import { formatJobMatch, sendTelegramMessage } from "@/lib/telegram";
-import type { Job, User } from "@/lib/types";
+import type { Credentials } from "@/lib/providers/types";
+import type { Job, JobSearchParams, User } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const MATCH_THRESHOLD = 60;
-const MAX_JSEARCH_CALLS = 50;
+// Budget of paid/keyed (non-keyless) provider calls per cron run.
+const MAX_EXTERNAL_CALLS = 50;
 const TOP_N = 3;
+
+/** Env-var fallback creds for a provider (shared platform key), if any. */
+function envFallback(providerId: string): Credentials | null {
+  const provider = getProvider(providerId);
+  if (!provider?.envFallbackKey) return null;
+  const value = process.env[provider.envFallbackKey];
+  return value ? { apiKey: value } : null;
+}
 
 /**
  * Cron-triggered (every 6h via Vercel Cron). For each Pro user, fetch fresh
@@ -30,7 +40,7 @@ export async function GET(req: Request) {
     .where("telegramLinked", "==", true)
     .get();
 
-  let jsearchCalls = 0;
+  let externalCalls = 0;
   let notified = 0;
   const processed: string[] = [];
 
@@ -44,17 +54,36 @@ export async function GET(req: Request) {
       .filter(Boolean)
       .join(" ") || "";
     const location = profile.targetLocations?.[0];
+    const params: JobSearchParams = {
+      query,
+      location,
+      datePosted: "3days",
+      skills: profile.skills || [],
+    };
 
-    // Respect the per-run JSearch budget; RemoteOK is always free.
-    const useJSearch = jsearchCalls < MAX_JSEARCH_CALLS;
-    if (useJSearch) jsearchCalls++;
+    // Search across the user's own connected providers (+ keyless + env
+    // fallbacks), respecting the per-run budget for keyed providers.
+    const searches: Promise<Job[]>[] = [];
+    for (const provider of PROVIDERS) {
+      let creds: Credentials | null = {};
+      if (!provider.keyless) {
+        const userCreds = await loadCredentials(user.uid, provider.id);
+        creds = hasAllCredentials(provider, userCreds)
+          ? userCreds
+          : envFallback(provider.id);
+        if (!creds) continue; // user hasn't connected this provider
+        if (externalCalls >= MAX_EXTERNAL_CALLS) continue; // budget spent
+        externalCalls++;
+      }
+      searches.push(
+        provider
+          .search(params, creds || {})
+          .then((r) => r.jobs)
+          .catch(() => [])
+      );
+    }
 
-    const [jsearchJobs, remoteJobs] = await Promise.all([
-      useJSearch ? searchJSearch({ query, location, datePosted: "3days" }) : Promise.resolve([]),
-      searchRemoteOk({ query }, profile.skills || []),
-    ]);
-
-    let jobs: Job[] = [...jsearchJobs, ...remoteJobs];
+    let jobs: Job[] = (await Promise.all(searches)).flat();
 
     // Load seen ids.
     const seenRef = adminDb().collection("seenJobs").doc(user.uid);
@@ -87,6 +116,6 @@ export async function GET(req: Request) {
     ok: true,
     usersProcessed: processed.length,
     notificationsSent: notified,
-    jsearchCalls,
+    externalCalls,
   });
 }

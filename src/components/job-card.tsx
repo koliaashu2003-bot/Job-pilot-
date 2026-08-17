@@ -17,12 +17,17 @@ interface JobCardProps {
 function sourceBadge(job: Job) {
   const label = job.sourceLabel;
   const l = label.toLowerCase();
-  if (job.source === "remoteok") return <Badge variant="success">RemoteOK</Badge>;
-  if (l.includes("linkedin")) return <Badge variant="info">{label}</Badge>;
-  if (l.includes("indeed"))
-    return (
-      <Badge className="border border-purple-500/30 bg-purple-500/15 text-purple-400">{label}</Badge>
-    );
+  const purple = "border border-purple-500/30 bg-purple-500/15 text-purple-400";
+  const cyan = "border border-cyan-500/30 bg-cyan-500/15 text-cyan-400";
+  const orange = "border border-orange-500/30 bg-orange-500/15 text-orange-400";
+
+  if (job.source === "remoteok" || job.source === "arbeitnow")
+    return <Badge variant="success">{label}</Badge>;
+  if (job.source === "adzuna") return <Badge className={cyan}>{label}</Badge>;
+  if (job.source === "usajobs") return <Badge className={orange}>{label}</Badge>;
+  if (l.includes("linkedin") || job.source === "reed") return <Badge variant="info">{label}</Badge>;
+  if (l.includes("indeed") || job.source === "jooble" || job.source === "jsearch")
+    return <Badge className={purple}>{label}</Badge>;
   return <Badge variant="outline">{label}</Badge>;
 }
 

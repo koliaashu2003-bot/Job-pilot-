@@ -8,6 +8,10 @@ service cloud.firestore {
         // OAuth tokens are managed server-side (Admin SDK bypasses rules).
         allow read, write: if false;
       }
+      match /sources/{provider} {
+        // Encrypted job-provider API keys — server-managed only.
+        allow read, write: if false;
+      }
     }
 
     // Applications: user-scoped.

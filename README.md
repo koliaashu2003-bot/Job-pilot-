@@ -15,7 +15,7 @@ Pro users receive real-time Telegram alerts for new matching jobs.
 | Database | Firebase Firestore |
 | Auth | Firebase Auth (Google + Email/Password) |
 | Storage | Firebase Storage (CV uploads) |
-| Job data | JSearch (RapidAPI) + RemoteOK |
+| Job data | Pluggable providers: RemoteOK, Arbeitnow, JSearch, Adzuna, Jooble, Reed, USAJobs (bring-your-own-key) |
 | CV parsing / emails | Anthropic Claude (`claude-sonnet-4-6`) |
 | Email drafts | Gmail API (OAuth2) |
 | Notifications | Telegram Bot API |
@@ -24,13 +24,37 @@ Pro users receive real-time Telegram alerts for new matching jobs.
 ## Features
 
 - **CV → profile.** Upload a PDF; Claude extracts a structured, editable profile.
-- **Global job search.** Aggregates JSearch (Google for Jobs) + RemoteOK, deduped and normalized.
+- **Multi-platform job search.** Aggregates every platform the user connects, deduped and normalized.
+- **Bring-your-own-access.** Free sources are always on; keyed platforms are connected per user with their own API keys. When a platform is blocked for lack of access, the app prompts that user to connect it — right from the search page.
 - **Match scoring.** Ranks jobs by skill (60%), target role (25%), and location (15%) overlap.
 - **One-click apply.** Generates a tailored cold email and a Gmail draft with your CV attached.
 - **Telegram alerts.** Link your account for application confirmations and (Pro) new-job alerts.
-- **Automated polling.** A 6-hour cron notifies Pro users of new high-match jobs.
+- **Automated polling.** A 6-hour cron notifies Pro users of new high-match jobs across their connected sources.
 - **Applications tracker.** Table of every draft with editable status + stats.
 - Dark-only, mobile-responsive UI.
+
+## Job sources (bring your own access)
+
+JobPilot ships a **provider registry** (`src/lib/providers/`). Each user connects
+the platforms they have access to under **Settings → Job sources**; credentials
+are encrypted (AES-256-GCM) with `TOKEN_ENCRYPTION_KEY` and stored per user in
+`users/{uid}/sources/{providerId}` — never exposed to the browser.
+
+| Provider | Access needed | Notes |
+|---|---|---|
+| RemoteOK | none | Free, always on |
+| Arbeitnow | none | Free (Europe + remote), always on |
+| JSearch (Google Jobs) | RapidAPI key | LinkedIn/Indeed/Glassdoor via Google for Jobs. Optional shared fallback via `JSEARCH_API_KEY` |
+| Adzuna | app_id + app_key + country | Global, salary data |
+| Jooble | API key | 70+ countries |
+| Reed | API key | UK |
+| USAJobs | email + API key | US federal jobs |
+
+When a search includes a platform the user hasn't connected, `/api/jobs/search`
+returns it in a `needsAccess` array instead of failing — the UI turns that into
+a **“Connect {platform}”** prompt. To add a new platform, drop a file in
+`src/lib/providers/` implementing the `Provider` interface and register it in
+`src/lib/providers/index.ts`.
 
 ## Getting started
 
@@ -144,6 +168,7 @@ src/
 ```
 users/{uid}                        # profile, plan, telegram/gmail flags
 users/{uid}/tokens/{provider}      # encrypted OAuth refresh tokens
+users/{uid}/sources/{providerId}   # encrypted per-user job-provider API keys
 applications/{uid}/items/{appId}   # tracked applications
 seenJobs/{uid}                     # jobIds already notified + lastPollAt
 linkCodes/{code}                   # short-lived Telegram link codes
