@@ -54,7 +54,9 @@ export interface NotificationPrefs {
   weeklyDigest: boolean;
 }
 
-export type JobSource = "jsearch" | "remoteok";
+// Provider id string (e.g. "remoteok", "jsearch", "adzuna"). Kept as a string
+// so new BYOK providers can be added without changing this union.
+export type JobSource = string;
 
 export interface Job {
   id: string;
@@ -94,6 +96,8 @@ export interface JobSearchParams {
   datePosted?: "today" | "3days" | "week" | "month" | "all";
   employmentType?: string;
   page?: number;
+  skills?: string[];
+  sources?: JobSource[];
 }
 
 export const emptyProfile = (overrides: Partial<UserProfile> = {}): UserProfile => ({

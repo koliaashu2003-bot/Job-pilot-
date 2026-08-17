@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: hsl(240 10% 4%);
+  color: hsl(0 0% 98%);
+}
+
+* {
+  border-color: hsl(240 4% 16%);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Thin, dark scrollbars to match the theme. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(240 10% 4%);
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(240 4% 20%);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(240 4% 28%);
+}

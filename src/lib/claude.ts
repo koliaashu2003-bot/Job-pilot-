@@ -62,13 +62,15 @@ export async function parseCvPdf(base64Pdf: string): Promise<UserProfile> {
     messages: [
       {
         role: "user",
+        // PDF document blocks are supported by the API; cast to satisfy the
+        // SDK's content-block union in this version.
         content: [
           {
             type: "document",
             source: { type: "base64", media_type: "application/pdf", data: base64Pdf },
           },
           { type: "text", text: "Parse this CV and return the JSON." },
-        ],
+        ] as unknown as Anthropic.MessageParam["content"],
       },
     ],
   });
